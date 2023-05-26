@@ -232,3 +232,6 @@ void print_BE(IN const uint64_t *in, IN uint32_t bits_num);
 // No prints at all
 #  define print(name, in, bits_num)
 #endif
+
+void
+fprintf_LE_test(IN const uint64_t *in, IN uint32_t bits_num);

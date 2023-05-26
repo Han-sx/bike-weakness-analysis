@@ -20,7 +20,7 @@
 
 #if(LEVEL == 1)
 // 64-bits of post-quantum security parameters (BIKE spec):
-#  define R_BITS 12323
+#  define R_BITS 9661
 #  define D      71
 #  define T      134
 

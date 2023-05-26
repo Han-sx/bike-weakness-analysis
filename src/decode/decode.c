@@ -39,6 +39,7 @@
 #include "decode_internal.h"
 #include "gf2x.h"
 #include "utilities.h"
+#include <stdio.h>
 
 // Decoding (bit-flipping) parameter
 #if defined(BG_DECODER)
@@ -53,9 +54,9 @@
 #  define MAX_IT 5
 #endif
 
-ret_t compute_syndrome(OUT syndrome_t *syndrome,
-                       IN const pad_r_t *c0,
-                       IN const pad_r_t *h0,
+ret_t compute_syndrome(OUT syndrome_t      *syndrome,
+                       IN const pad_r_t    *c0,
+                       IN const pad_r_t    *h0,
                        IN const decode_ctx *ctx)
 {
   DEFER_CLEANUP(pad_r_t pad_s, pad_r_cleanup);
@@ -68,11 +69,11 @@ ret_t compute_syndrome(OUT syndrome_t *syndrome,
   return SUCCESS;
 }
 
-_INLINE_ ret_t recompute_syndrome(OUT syndrome_t *syndrome,
-                                  IN const pad_r_t *c0,
-                                  IN const pad_r_t *h0,
-                                  IN const pad_r_t *pk,
-                                  IN const e_t *e,
+_INLINE_ ret_t recompute_syndrome(OUT syndrome_t      *syndrome,
+                                  IN const pad_r_t    *c0,
+                                  IN const pad_r_t    *h0,
+                                  IN const pad_r_t    *pk,
+                                  IN const e_t        *e,
                                   IN const decode_ctx *ctx)
 {
   DEFER_CLEANUP(pad_r_t tmp_c0, pad_r_cleanup);
@@ -111,13 +112,13 @@ _INLINE_ uint8_t get_threshold(IN const syndrome_t *s)
 // Calculate the Unsatisfied Parity Checks (UPCs) and update the errors
 // vector (e) accordingly. In addition, update the black and gray errors vector
 // with the relevant values.
-_INLINE_ void find_err1(OUT e_t *e,
-                        OUT e_t *black_e,
-                        OUT e_t *gray_e,
-                        IN const syndrome_t *          syndrome,
+_INLINE_ void find_err1(OUT e_t                       *e,
+                        OUT e_t                       *black_e,
+                        OUT e_t                       *gray_e,
+                        IN const syndrome_t           *syndrome,
                         IN const compressed_idx_d_ar_t wlist,
                         IN const uint8_t               threshold,
-                        IN const decode_ctx *ctx)
+                        IN const decode_ctx           *ctx)
 {
   // This function uses the bit-slice-adder methodology of [5]:
   DEFER_CLEANUP(syndrome_t rotated_syndrome = {0}, syndrome_cleanup);
@@ -171,12 +172,12 @@ _INLINE_ void find_err1(OUT e_t *e,
 
 // Recalculate the UPCs and update the errors vector (e) according to it
 // and to the black/gray vectors.
-_INLINE_ void find_err2(OUT e_t *e,
-                        IN e_t * pos_e,
-                        IN const syndrome_t *          syndrome,
+_INLINE_ void find_err2(OUT e_t                       *e,
+                        IN e_t                        *pos_e,
+                        IN const syndrome_t           *syndrome,
                         IN const compressed_idx_d_ar_t wlist,
                         IN const uint8_t               threshold,
-                        IN const decode_ctx *ctx)
+                        IN const decode_ctx           *ctx)
 {
   DEFER_CLEANUP(syndrome_t rotated_syndrome = {0}, syndrome_cleanup);
   DEFER_CLEANUP(upc_t upc, upc_cleanup);
@@ -210,7 +211,7 @@ _INLINE_ void find_err2(OUT e_t *e,
   }
 }
 
-ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk)
+ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk, IN uint32_t *error_count)
 {
   // Initialize the decode methods struct
   decode_ctx ctx;
@@ -266,9 +267,29 @@ ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk)
     GUARD(recompute_syndrome(&s, &c0, &h0, &pk, e, &ctx));
   }
 
+  // 保存当前密钥
+  fprintf_LE_test((const uint64_t *)sk->bin[0].raw, R_BITS);
+  fprintf_LE_test((const uint64_t *)sk->bin[1].raw, R_BITS);
+  // 换行
+  FILE *fp_LE_test_1;
+  fp_LE_test_1 = fopen("weak_key", "a");
+  fprintf(fp_LE_test_1, "\n");
+  fclose(fp_LE_test_1);
+
+  FILE *fp_LE_test_2;
+  fp_LE_test_2 = fopen("weak_key_flag", "a");
+  if(r_bits_vector_weight((r_t *)s.qw) > 0) {
+    // 如果译码失败
+    fprintf(fp_LE_test_2, "0\n");
+    *error_count = *error_count + 1;
+  } else {
+    // 如果译码成功
+    fprintf(fp_LE_test_2, "1\n");
+  }
+  fclose(fp_LE_test_2);
+
   if(r_bits_vector_weight((r_t *)s.qw) > 0) {
     BIKE_ERROR(E_DECODING_FAILURE);
   }
-
   return SUCCESS;
 }

@@ -10,14 +10,14 @@
 #include <string.h>
 #include <time.h>
 
+#include "cpu_features.h"
 #include "gf2x.h"
 #include "kem.h"
 #include "measurements.h"
 #include "utilities.h"
-#include "cpu_features.h"
 
 #if !defined(NUM_OF_TESTS)
-#  define NUM_OF_TESTS 1
+#  define NUM_OF_TESTS 1000
 #endif
 
 typedef struct magic_number_s {
@@ -60,6 +60,8 @@ int main()
   STRUCT_WITH_MAGIC(k_enc, sizeof(ss_t)); // shared secret after decapsulate
   STRUCT_WITH_MAGIC(k_dec, sizeof(ss_t)); // shared secret after encapsulate
 
+  // 用于保存错误个数
+  uint32_t error_count = 0;
   for(size_t i = 1; i <= NUM_OF_TESTS; ++i) {
     int res = 0;
 
@@ -83,22 +85,23 @@ int main()
     }
 
     // Decapsulate
-    MEASURE("  decaps", dec_rc = crypto_kem_dec(k_dec.val, ct.val, sk.val););
+    MEASURE("  decaps",
+            dec_rc = crypto_kem_dec(k_dec.val, ct.val, sk.val, &error_count););
 
     // Check test status
     if(dec_rc != 0) {
       printf("Decoding failed after %ld code tests!\n", i);
     } else {
       if(secure_cmp(k_enc.val, k_dec.val, sizeof(k_dec.val) / sizeof(uint64_t))) {
-        printf("Success! decapsulated key is the same as encapsulated "
-               "key!\n");
+        // printf("Success! decapsulated key is the same as encapsulated "
+        //        "key!\n");
       } else {
-        printf("Failure! decapsulated key is NOT the same as encapsulated "
-               "key!\n");
+        // printf("Failure! decapsulated key is NOT the same as encapsulated "
+        //        "key!\n");
       }
     }
 
-    // Check magic numbers (memory overflow) 
+    // Check magic numbers (memory overflow)
     CHECK_MAGIC(sk);
     CHECK_MAGIC(pk);
     CHECK_MAGIC(ct);
@@ -110,6 +113,7 @@ int main()
     print("Responder's computed key (K) of 256 bits  = ", (uint64_t *)k_dec.val,
           SIZEOF_BITS(k_enc.val));
   }
+  printf("译码错误个数：%u\n", error_count);
 
   return 0;
 }
