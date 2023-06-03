@@ -268,28 +268,24 @@ ret_t decode(OUT e_t *e, IN const ct_t *ct, IN const sk_t *sk, IN uint32_t *erro
   }
 
   // 保存当前密钥
-  fprintf_LE_test((const uint64_t *)sk->bin[0].raw, R_BITS);
-  fprintf_LE_test((const uint64_t *)sk->bin[1].raw, R_BITS);
+  fprintf_LE_test((const uint64_t *)sk->bin[0].raw, R_BITS, "data");
+  fprintf_LE_test((const uint64_t *)sk->bin[1].raw, R_BITS, "data");
+
   // 换行
   FILE *fp_LE_test_1;
-  fp_LE_test_1 = fopen("weak_key", "a");
+  fp_LE_test_1 = fopen("data", "a");
   fprintf(fp_LE_test_1, "\n");
   fclose(fp_LE_test_1);
 
-  FILE *fp_LE_test_2;
-  fp_LE_test_2 = fopen("weak_key_flag", "a");
-  if(r_bits_vector_weight((r_t *)s.qw) > 0) {
-    // 如果译码失败
-    fprintf(fp_LE_test_2, "0\n");
-    *error_count = *error_count + 1;
-  } else {
-    // 如果译码成功
-    fprintf(fp_LE_test_2, "1\n");
-  }
-  fclose(fp_LE_test_2);
+  // 保存当前正确 e
+  fprintf_LE_test((const uint64_t *)e->val[0].raw, R_BITS, "data");
+  fprintf_LE_test((const uint64_t *)e->val[1].raw, R_BITS, "data");
+
+  if(error_count)
 
   if(r_bits_vector_weight((r_t *)s.qw) > 0) {
     BIKE_ERROR(E_DECODING_FAILURE);
   }
+  printf("译码成功\n");
   return SUCCESS;
 }

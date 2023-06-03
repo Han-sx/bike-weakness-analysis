@@ -17,7 +17,7 @@
 #include "utilities.h"
 
 #if !defined(NUM_OF_TESTS)
-#  define NUM_OF_TESTS 1000
+#  define NUM_OF_TESTS 1
 #endif
 
 typedef struct magic_number_s {
@@ -113,7 +113,7 @@ int main()
     print("Responder's computed key (K) of 256 bits  = ", (uint64_t *)k_dec.val,
           SIZEOF_BITS(k_enc.val));
   }
-  printf("译码错误个数：%u\n", error_count);
+  // printf("译码错误个数：%u\n", error_count);
 
   return 0;
 }

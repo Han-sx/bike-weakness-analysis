@@ -125,7 +125,7 @@ print_LE(IN const uint64_t *in, IN const uint32_t bits_num)
   // printf("小端输出qw_num的值(块数) %" PRIu32 "\n",qw_num);
 
   FILE *fp;
-  fp = fopen("weak_key", "a");
+  fp = fopen("data", "a");
 
   // Print the MSB QW
   uint32_t qw_pos =
@@ -149,7 +149,7 @@ print_BE(IN const uint64_t *in, IN const uint32_t bits_num)
   const uint32_t qw_num = bits_num / BITS_IN_QWORD;
 
   FILE *fp;
-  fp = fopen("weak_key", "a");
+  fp = fopen("data", "a");
 
   // Print each 16 numbers separatly
   for(uint32_t i = 0; i < qw_num; ++i)
@@ -166,12 +166,12 @@ print_BE(IN const uint64_t *in, IN const uint32_t bits_num)
 }
 
 void
-fprintf_LE_test(IN const uint64_t *in, IN const uint32_t bits_num)
+fprintf_LE_test(IN const uint64_t *in, IN const uint32_t bits_num, IN const char *fliename)
 {
   const uint32_t qw_num = bits_num / BITS_IN_QWORD;
 
   FILE *fp;
-  fp = fopen("weak_key", "a");
+  fp = fopen(fliename, "a");
 
   // Print the MSB QW
   uint32_t qw_pos =
