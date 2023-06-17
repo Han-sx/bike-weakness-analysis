@@ -49,9 +49,9 @@
 #  define MAX_RAND_INDICES_T 373
 
 // The gf2m code is optimized to a block in this case:
-#  define BLOCK_BITS 32768
+#  define BLOCK_BITS         32768
 
-#elif (LEVEL == 5)
+#elif(LEVEL == 5)
 #  define R_BITS 40973
 #  define D      137
 #  define T      264
@@ -108,4 +108,3 @@
 #define BGF_DECODER
 #define DELTA  3
 #define SLICES (LOG2_MSB(D) + 1)
-

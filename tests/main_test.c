@@ -60,12 +60,16 @@ int main()
   STRUCT_WITH_MAGIC(k_enc, sizeof(ss_t)); // shared secret after decapsulate
   STRUCT_WITH_MAGIC(k_dec, sizeof(ss_t)); // shared secret after encapsulate
 
-  // 用于保存错误个数
+  // 用于保存错误和正确个数
   uint32_t error_count = 0;
+  uint32_t right_count = 0;
   for(size_t i = 1; i <= NUM_OF_TESTS; ++i) {
+    // if(error_count == 54715){
+    //   break;
+    // }
     int res = 0;
 
-    printf("Code test: %lu\n", i);
+    // printf("Code test: %lu\n", i);
 
     // Key generation
     MEASURE("  keypair", res = crypto_kem_keypair(pk.val, sk.val););
@@ -77,16 +81,18 @@ int main()
 
     uint32_t dec_rc = 0;
 
+    pad_e_t R_e = {0};
+
     // Encapsulate
-    MEASURE("  encaps", res = crypto_kem_enc(ct.val, k_enc.val, pk.val););
+    MEASURE("  encaps", res = crypto_kem_enc(ct.val, k_enc.val, pk.val, &R_e););
     if(res != 0) {
       printf("encapsulate failed with error: %d\n", res);
       continue;
     }
 
     // Decapsulate
-    MEASURE("  decaps",
-            dec_rc = crypto_kem_dec(k_dec.val, ct.val, sk.val, &error_count););
+    MEASURE("  decaps", dec_rc = crypto_kem_dec(k_dec.val, ct.val, sk.val,
+                                                &error_count, &right_count, &R_e););
 
     // Check test status
     if(dec_rc != 0) {
@@ -114,6 +120,7 @@ int main()
           SIZEOF_BITS(k_enc.val));
   }
   printf("译码错误个数：%u\n", error_count);
+  printf("译码正确个数：%u\n", right_count);
 
   return 0;
 }

@@ -57,6 +57,15 @@
 // 当 SAVE_MOD = 0 时保存所有，1 保存正确，2 保存错误
 #define SAVE_MOD 0
 
+void write_wrap(char *filename)
+{
+  // 换行
+  FILE *fp_LE_test_1;
+  fp_LE_test_1 = fopen(filename, "a");
+  fprintf(fp_LE_test_1, "\n");
+  fclose(fp_LE_test_1);
+}
+
 ret_t compute_syndrome(OUT syndrome_t      *syndrome,
                        IN const pad_r_t    *c0,
                        IN const pad_r_t    *h0,
@@ -214,10 +223,12 @@ _INLINE_ void find_err2(OUT e_t                       *e,
   }
 }
 
-ret_t decode(OUT e_t       *e,
-             IN const ct_t *ct,
-             IN const sk_t *sk,
-             IN uint32_t   *error_count)
+ret_t decode(OUT e_t          *e,
+             IN const ct_t    *ct,
+             IN const sk_t    *sk,
+             IN uint32_t      *error_count,
+             IN uint32_t      *right_count,
+             IN const pad_e_t *R_e)
 {
   // Initialize the decode methods struct
   decode_ctx ctx;
@@ -275,16 +286,20 @@ ret_t decode(OUT e_t       *e,
 
   // 设置保存类型
   // 当 SAVE_MOD = 0 时保存所有，1 保存正确，2 保存错误，其他不保存
+  // 保存文件名
+  char filename[20] = "weak_key";
   if(SAVE_MOD == 0) {
     // 保存当前密钥
     fprintf_LE_test((const uint64_t *)sk->bin[0].raw, R_BITS);
     fprintf_LE_test((const uint64_t *)sk->bin[1].raw, R_BITS);
     // 换行
-    FILE *fp_LE_test_1;
-    fp_LE_test_1 = fopen("weak_key", "a");
-    fprintf(fp_LE_test_1, "\n");
-    fclose(fp_LE_test_1);
-
+    write_wrap(filename);
+    // 保存真实 e
+    fprintf_LE_test((const uint64_t *)R_e->val[0].val.raw, R_BITS);
+    fprintf_LE_test((const uint64_t *)R_e->val[1].val.raw, R_BITS);
+    // 换行
+    write_wrap(filename);
+    // 写入 flag
     FILE *fp_LE_test_2;
     fp_LE_test_2 = fopen("weak_key_flag", "a");
     if(r_bits_vector_weight((r_t *)s.qw) > 0) {
@@ -301,10 +316,13 @@ ret_t decode(OUT e_t       *e,
       fprintf_LE_test((const uint64_t *)sk->bin[0].raw, R_BITS);
       fprintf_LE_test((const uint64_t *)sk->bin[1].raw, R_BITS);
       // 换行
-      FILE *fp_LE_test_1;
-      fp_LE_test_1 = fopen("weak_key", "a");
-      fprintf(fp_LE_test_1, "\n");
-      fclose(fp_LE_test_1);
+      write_wrap(filename);
+      // 保存真实 e
+      fprintf_LE_test((const uint64_t *)R_e->val[0].val.raw, R_BITS);
+      fprintf_LE_test((const uint64_t *)R_e->val[1].val.raw, R_BITS);
+      // 换行
+      write_wrap(filename);
+      // 写入 flag
       FILE *fp_LE_test_2;
       fp_LE_test_2 = fopen("weak_key_flag", "a");
       fprintf(fp_LE_test_2, "1\n");
@@ -316,10 +334,13 @@ ret_t decode(OUT e_t       *e,
       fprintf_LE_test((const uint64_t *)sk->bin[0].raw, R_BITS);
       fprintf_LE_test((const uint64_t *)sk->bin[1].raw, R_BITS);
       // 换行
-      FILE *fp_LE_test_1;
-      fp_LE_test_1 = fopen("weak_key", "a");
-      fprintf(fp_LE_test_1, "\n");
-      fclose(fp_LE_test_1);
+      write_wrap(filename);
+      // 保存真实 e
+      fprintf_LE_test((const uint64_t *)R_e->val[0].val.raw, R_BITS);
+      fprintf_LE_test((const uint64_t *)R_e->val[1].val.raw, R_BITS);
+      // 换行
+      write_wrap(filename);
+      // 写入 flag
       FILE *fp_LE_test_2;
       fp_LE_test_2 = fopen("weak_key_flag", "a");
       fprintf(fp_LE_test_2, "0\n");
@@ -331,5 +352,6 @@ ret_t decode(OUT e_t       *e,
     *error_count = *error_count + 1;
     BIKE_ERROR(E_DECODING_FAILURE);
   }
+  *right_count = *right_count + 1;
   return SUCCESS;
 }
