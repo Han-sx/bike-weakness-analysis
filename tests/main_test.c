@@ -17,7 +17,7 @@
 #include "utilities.h"
 
 #if !defined(NUM_OF_TESTS)
-#  define NUM_OF_TESTS 1000
+#  define NUM_OF_TESTS 1000000000000
 #endif
 
 typedef struct magic_number_s {
@@ -64,9 +64,9 @@ int main()
   uint32_t error_count = 0;
   uint32_t right_count = 0;
   for(size_t i = 1; i <= NUM_OF_TESTS; ++i) {
-    // if(error_count == 54715){
-    //   break;
-    // }
+    if(error_count == 25000){
+      break;
+    }
     int res = 0;
 
     // printf("Code test: %lu\n", i);

@@ -51,15 +51,53 @@
 #    error "Level can only be 1/3"
 #  endif
 #elif defined(BGF_DECODER)
-#  define MAX_IT 5
+#  define MAX_IT 10
 #endif
 
 // 当 SAVE_MOD = 0 时保存所有，1 保存正确，2 保存错误
-#define SAVE_MOD 0
+#define SAVE_MOD 2
 
+// 用于计算出upc切片的值并保存在文件中
+_INLINE_ void compute_upc_and_save_test(IN upc_t upc)
+{
+  // ---- test ---- 将 upc 切片的值计算出来并保存
+  uint64_t mask_1 = 1;
+  // 处理前 R_QW - 1 位
+  // 将每层累计得到的 upc_i 写入文件
+  FILE *fp_2;
+  fp_2 = fopen("weak_key", "a");
+  for(uint16_t i_upc = 0; i_upc < R_QWORDS - 1; i_upc++) {
+    for(uint64_t location = 1; location != 0; location <<= 1) {
+      // 用于保存每个upc[i]的值
+      uint16_t upc_i = 0;
+      for(uint8_t location_s = 1, i_upc_s = 0; i_upc_s < SLICES - 1;
+          i_upc_s++, location_s <<= 1) {
+        if((upc.slice[i_upc_s].u.qw[i_upc] & location) != 0) {
+          upc_i += location_s;
+        }
+      }
+      fprintf(fp_2, "%u ", upc_i);
+    }
+  }
+  // 处理最后 R_BITS - (R_QW - 1) * 64 位
+  for(uint64_t location = 1;
+      location < (mask_1 << (R_BITS - (R_QWORDS - 1) * 64)); location <<= 1) {
+    // 用于保存每个upc[i]的值
+    uint16_t upc_i = 0;
+    for(uint8_t location_s = 1, i_upc_s = 0; i_upc_s < SLICES - 1;
+        i_upc_s++, location_s <<= 1) {
+      if((upc.slice[i_upc_s].u.qw[R_QWORDS - 1] & location) != 0) {
+        upc_i += location_s;
+      }
+    }
+    fprintf(fp_2, "%u ", upc_i);
+  }
+  fclose(fp_2);
+}
+
+// 换行函数
 void write_wrap(char *filename)
 {
-  // 换行
   FILE *fp_LE_test_1;
   fp_LE_test_1 = fopen(filename, "a");
   fprintf(fp_LE_test_1, "\n");
@@ -124,7 +162,8 @@ _INLINE_ uint8_t get_threshold(IN const syndrome_t *s)
 // Calculate the Unsatisfied Parity Checks (UPCs) and update the errors
 // vector (e) accordingly. In addition, update the black and gray errors vector
 // with the relevant values.
-_INLINE_ void find_err1(OUT e_t                       *e,
+_INLINE_ void find_err1(OUT upc_all_t                 *upc_out,
+                        OUT e_t                       *e,
                         OUT e_t                       *black_e,
                         OUT e_t                       *gray_e,
                         IN const syndrome_t           *syndrome,
@@ -145,6 +184,11 @@ _INLINE_ void find_err1(OUT e_t                       *e,
     for(size_t j = 0; j < D; j++) {
       ctx->rotate_right(&rotated_syndrome, syndrome, wlist[i].val[j]);
       ctx->bit_sliced_adder(&upc, &rotated_syndrome, LOG2_MSB(j + 1));
+    }
+
+    // 保存 upc 到 upc_out
+    for(uint8_t slice_i = 0; slice_i < SLICES; slice_i++) {
+      upc_out->val[i].slice[slice_i] = upc.slice[slice_i];
     }
 
     // 2) Subtract the threshold from the UPC counters
@@ -254,6 +298,9 @@ ret_t decode(OUT e_t          *e,
   // Reset (init) the error because it is xored in the find_err functions.
   bike_memset(e, 0, sizeof(*e));
 
+  // 用于保存 upc 的值
+  upc_all_t weak_upc[MAX_IT + 2] = {0};
+
   for(uint32_t iter = 0; iter < MAX_IT; iter++) {
     const uint8_t threshold = get_threshold(&s);
 
@@ -262,7 +309,8 @@ ret_t decode(OUT e_t          *e,
          r_bits_vector_weight(&e->val[0]) + r_bits_vector_weight(&e->val[1]));
     DMSG("    Weight of syndrome: %lu\n", r_bits_vector_weight((r_t *)s.qw));
 
-    find_err1(e, &black_e, &gray_e, &s, sk->wlist, threshold, &ctx);
+    find_err1(&weak_upc[iter], e, &black_e, &gray_e, &s, sk->wlist, threshold,
+              &ctx);
     GUARD(recompute_syndrome(&s, &c0, &h0, &pk, e, &ctx));
 #if defined(BGF_DECODER)
     if(iter >= 1) {
@@ -299,6 +347,11 @@ ret_t decode(OUT e_t          *e,
     fprintf_LE_test((const uint64_t *)R_e->val[1].val.raw, R_BITS);
     // 换行
     write_wrap(filename);
+    // 写入 upc
+    compute_upc_and_save_test(weak_upc[0].val[0]);
+    compute_upc_and_save_test(weak_upc[0].val[1]);
+    // 换行
+    write_wrap(filename);
     // 写入 flag
     FILE *fp_LE_test_2;
     fp_LE_test_2 = fopen("weak_key_flag", "a");
@@ -322,6 +375,11 @@ ret_t decode(OUT e_t          *e,
       fprintf_LE_test((const uint64_t *)R_e->val[1].val.raw, R_BITS);
       // 换行
       write_wrap(filename);
+      // 写入 upc
+      compute_upc_and_save_test(weak_upc[0].val[0]);
+      compute_upc_and_save_test(weak_upc[0].val[1]);
+      // 换行
+      write_wrap(filename);
       // 写入 flag
       FILE *fp_LE_test_2;
       fp_LE_test_2 = fopen("weak_key_flag", "a");
@@ -338,6 +396,11 @@ ret_t decode(OUT e_t          *e,
       // 保存真实 e
       fprintf_LE_test((const uint64_t *)R_e->val[0].val.raw, R_BITS);
       fprintf_LE_test((const uint64_t *)R_e->val[1].val.raw, R_BITS);
+      // 换行
+      write_wrap(filename);
+      // 写入 upc
+      compute_upc_and_save_test(weak_upc[0].val[0]);
+      compute_upc_and_save_test(weak_upc[0].val[1]);
       // 换行
       write_wrap(filename);
       // 写入 flag
