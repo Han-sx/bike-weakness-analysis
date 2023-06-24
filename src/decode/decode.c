@@ -51,11 +51,11 @@
 #    error "Level can only be 1/3"
 #  endif
 #elif defined(BGF_DECODER)
-#  define MAX_IT 10
+#  define MAX_IT 5
 #endif
 
 // 当 SAVE_MOD = 0 时保存所有，1 保存正确，2 保存错误
-#define SAVE_MOD 2
+#define SAVE_MOD 1
 
 // 用于计算出upc切片的值并保存在文件中
 _INLINE_ void compute_upc_and_save_test(IN upc_t upc)

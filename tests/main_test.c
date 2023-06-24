@@ -64,7 +64,7 @@ int main()
   uint32_t error_count = 0;
   uint32_t right_count = 0;
   for(size_t i = 1; i <= NUM_OF_TESTS; ++i) {
-    if(error_count == 25000){
+    if(right_count == 2500){
       break;
     }
     int res = 0;
