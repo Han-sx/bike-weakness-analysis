@@ -51,7 +51,7 @@
 #    error "Level can only be 1/3"
 #  endif
 #elif defined(BGF_DECODER)
-#  define MAX_IT 5
+#  define MAX_IT 15
 #endif
 
 // 当 SAVE_MOD = 0 时保存所有，1 保存正确，2 保存错误, 其他不保存
