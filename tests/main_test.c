@@ -17,7 +17,7 @@
 #include "utilities.h"
 
 #if !defined(NUM_OF_TESTS)
-#  define NUM_OF_TESTS 1000000000000
+#  define NUM_OF_TESTS 100
 #endif
 
 typedef struct magic_number_s {
@@ -64,9 +64,9 @@ int main()
   uint32_t error_count = 0;
   uint32_t right_count = 0;
   for(size_t i = 1; i <= NUM_OF_TESTS; ++i) {
-    if(right_count == 2500){
-      break;
-    }
+    // if(right_count == 2500){
+    //   break;
+    // }
     int res = 0;
 
     // printf("Code test: %lu\n", i);
@@ -78,6 +78,9 @@ int main()
       printf("Keypair failed with error: %d\n", res);
       continue;
     }
+
+    // 用于检测是否译码错误
+    uint32_t error_tmp = error_count;
 
     uint32_t dec_rc = 0;
 
@@ -118,6 +121,66 @@ int main()
           SIZEOF_BITS(k_enc.val));
     print("Responder's computed key (K) of 256 bits  = ", (uint64_t *)k_dec.val,
           SIZEOF_BITS(k_enc.val));
+    
+    // 如果译码错误我们保存一个密钥对
+    if (error_tmp != error_count)
+    {
+      // 保存公钥
+      FILE *fp_w_pk;
+      char fname_pk[100];
+      sprintf(fname_pk, "data/pk_%u", error_count);
+      fp_w_pk = fopen(fname_pk, "w");
+      fwrite(&pk, 1, sizeof(pk), fp_w_pk);
+      fclose(fp_w_pk);
+      // for (uint32_t i_test = 0; i_test < sizeof(pk.val); i_test++)
+      // {
+      //   printf("%u", pk.val[i_test]);
+      // }
+      // printf("\n\n");
+
+      // 保存私钥
+      FILE *fp_w_sk;
+      char fname_sk[100];
+      sprintf(fname_sk, "data/sk_%u", error_count);
+      fp_w_sk = fopen(fname_sk, "w");
+      fwrite(&sk, 1, sizeof(sk), fp_w_sk);
+      fclose(fp_w_sk);
+      // for (uint32_t i_test = 0; i_test < sizeof(sk.val); i_test++)
+      // {
+      //   printf("%u", sk.val[i_test]);
+      // }
+      // printf("\n\n");
+
+      // // 读取公钥
+      // FILE *fp_r_pk;
+      // fp_r_pk = fopen(fname_pk, "r");
+      // STRUCT_WITH_MAGIC(pk_r, sizeof(pk_t));
+      // size_t res_fread_pk = fread(&pk_r, 1, sizeof (pk_r), fp_r_pk);
+      // fclose(fp_r_pk);
+      // for (uint32_t i_test = 0; i_test < sizeof(pk_r.val); i_test++)
+      // {
+      //   printf("%u", pk_r.val[i_test]);
+      // }
+      // printf("\n\n");
+
+      // // 读取私钥
+      // FILE *fp_r_sk;
+      // fp_r_sk = fopen(fname_sk, "r");
+      // STRUCT_WITH_MAGIC(sk_r, sizeof(sk_t));
+      // size_t res_fread_sk = fread(&sk_r, 1, sizeof (sk_r), fp_r_sk);
+      // fclose(fp_r_sk);
+      // for (uint32_t i_test = 0; i_test < sizeof(sk_r.val); i_test++)
+      // {
+      //   printf("%u", sk_r.val[i_test]);
+      // }
+      // printf("\n\n");
+
+      // if (res_fread_pk && res_fread_sk)
+      // {
+      //   /* code */
+      // }
+    }
+    
   }
   printf("译码错误个数：%u\n", error_count);
   printf("译码正确个数：%u\n", right_count);
