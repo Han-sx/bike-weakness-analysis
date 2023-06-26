@@ -22,7 +22,9 @@ int crypto_kem_keypair(OUT unsigned char *pk, OUT unsigned char *sk);
 int crypto_kem_enc(OUT unsigned char      *ct,
                    OUT unsigned char      *ss,
                    IN const unsigned char *pk,
-                   IN pad_e_t *R_e);
+                   IN pad_e_t *R_e,
+                   IN int *flag,
+                   IN m_t *m_in);
 
 // Decapsulate - ct is a key encapsulation message (ciphertext),
 //               sk is the private key,

@@ -10,6 +10,7 @@
 #include "gf2x.h"
 #include "sampling.h"
 #include "sha.h"
+#include <stdio.h>
 
 // m_t and seed_t have the same size and thus can be considered
 // to be of the same type. However, for security reasons we distinguish
@@ -206,7 +207,9 @@ int crypto_kem_keypair(OUT unsigned char *pk, OUT unsigned char *sk)
 int crypto_kem_enc(OUT unsigned char      *ct,
                    OUT unsigned char      *ss,
                    IN const unsigned char *pk,
-                   IN pad_e_t *R_e)
+                   IN pad_e_t             *R_e,
+                   IN int                 *flag,
+                   IN m_t                 *m_in)
 {
   // Public values (they do not require cleanup on exit).
   pk_t l_pk;
@@ -221,10 +224,24 @@ int crypto_kem_enc(OUT unsigned char      *ct,
   // alignment issues on non x86_64 processors.
   bike_memcpy(&l_pk, pk, sizeof(l_pk));
 
-  get_seeds(&seeds);
-
-  // e = H(m) = H(seed[0])
-  convert_seed_to_m_type(&m, &seeds.seed[0]);
+  // 检查是否使用预存 m
+  if(flag[0] == 0) {
+    get_seeds(&seeds);
+    // e = H(m) = H(seed[0])
+    convert_seed_to_m_type(&m, &seeds.seed[0]);
+  } else if(flag[0] == 1) {
+    // 读取 m
+    FILE *fp_r_m;
+    char  fname_m[100];
+    sprintf(fname_m, "data/m_%d", flag[1]);
+    fp_r_m              = fopen(fname_m, "r");
+    size_t res_fread_pk = fread(&m, 1, sizeof(m), fp_r_m);
+    if(res_fread_pk){}
+    fclose(fp_r_m);
+  } else {
+    printf("警告: m 为空, 未分配任何值\n");
+  }
+  bike_memcpy(m_in, &m, sizeof(m));
   GUARD(function_h(&e, &m, &l_pk));
 
   // 获取真实 e
@@ -254,7 +271,7 @@ int crypto_kem_dec(OUT unsigned char      *ss,
                    IN const unsigned char *sk,
                    IN uint32_t            *error_count,
                    IN uint32_t            *right_count,
-                   IN const pad_e_t *R_e)
+                   IN const pad_e_t       *R_e)
 {
   // Public values, does not require a cleanup on exit
   ct_t l_ct;

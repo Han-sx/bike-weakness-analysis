@@ -21,10 +21,13 @@
 #endif
 
 // 定义是否使用预存 data_sk_pk, 0 使用随机生成, 1 使用预存密钥对
-#define USE_S_P 1
-
+#define USE_S_P 0
 // 定义是否保存密钥对, 0 不保存, 1 保存正确密钥对, 2 保存错误密钥对
 #define SAVE_S_P 0
+// 定义是否使用预存 data_m, 0 使用随机生成, 1 使用预存 m
+#define USE_M 0
+// 定义是否保存 data_m, 0 不保存, 1 保存正确 m, 2 保存错误 m
+#define SAVE_M 0
 
 typedef struct magic_number_s {
   uint64_t val[4];
@@ -70,12 +73,10 @@ int main()
   uint32_t error_count = 0;
   uint32_t right_count = 0;
   for(size_t i = 1; i <= NUM_OF_TESTS; ++i) {
-    // if(right_count == 2500){
-    //   break;
-    // }
+
     int res = 0;
 
-    printf("Code test: %lu\n", i);
+    // printf("Code test: %lu\n", i);
 
     if(USE_S_P == 0) {
       // Key generation
@@ -108,13 +109,18 @@ int main()
 
     // 用于检测是否译码错误
     uint32_t error_tmp = error_count;
+    uint32_t dec_rc    = 0;
 
-    uint32_t dec_rc = 0;
-
+    // 用于保存真实 e
     pad_e_t R_e = {0};
 
+    // 构建 m flag 和预存 m
+    int flag[2] = {USE_M, i};
+    m_t m_in    = {0};
+
     // Encapsulate
-    MEASURE("  encaps", res = crypto_kem_enc(ct.val, k_enc.val, pk.val, &R_e););
+    MEASURE("  encaps",
+            res = crypto_kem_enc(ct.val, k_enc.val, pk.val, &R_e, flag, &m_in););
     if(res != 0) {
       printf("encapsulate failed with error: %d\n", res);
       continue;
@@ -150,6 +156,7 @@ int main()
     print("Responder's computed key (K) of 256 bits  = ", (uint64_t *)k_dec.val,
           SIZEOF_BITS(k_enc.val));
 
+    // 是否保存密钥对
     if(SAVE_S_P == 1) {
       // 如果译码正确我们保存一个密钥对
       if(error_tmp == error_count) {
@@ -188,12 +195,38 @@ int main()
         fwrite(&sk, 1, sizeof(sk), fp_w_sk);
         fclose(fp_w_sk);
       }
-    }else if (SAVE_S_P == 0)
-    {
+    } else if(SAVE_S_P == 0) {
       /* code */
     }
 
+    // 是否保存 m
+    if(SAVE_M == 1) {
+      // 如果正确译码, 保存 m
+      if(error_tmp == error_count) {
+        // 保存 m
+        FILE *fp_w_m;
+        char  fname_m[100];
+        sprintf(fname_m, "data/m_%u", right_count);
+        fp_w_m = fopen(fname_m, "w");
+        fwrite(&m_in, 1, sizeof(m_in), fp_w_m);
+        fclose(fp_w_m);
+      }
+    } else if(SAVE_M == 2) {
+      // 如果错误译码, 保存 m
+      if(error_tmp != error_count) {
+        // 保存 m
+        FILE *fp_w_m;
+        char  fname_m[100];
+        sprintf(fname_m, "data/m_%u", error_count);
+        fp_w_m = fopen(fname_m, "w");
+        fwrite(&m_in, 1, sizeof(m_in), fp_w_m);
+        fclose(fp_w_m);
+      }
+    } else if(SAVE_M == 0) {
+      /* code */
+    }
   }
+
   printf("译码错误个数：%u\n", error_count);
   printf("译码正确个数：%u\n", right_count);
 
