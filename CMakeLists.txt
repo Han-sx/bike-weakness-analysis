@@ -27,3 +27,5 @@ if(LINK_OPENSSL)
   set(OPENSSL_USE_STATIC_LIBS TRUE)
   target_link_libraries(bike-test OpenSSL::Crypto)
 endif()
+
+file(MAKE_DIRECTORY ./build/data)

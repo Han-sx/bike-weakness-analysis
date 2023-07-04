@@ -10,15 +10,24 @@
 #include <string.h>
 #include <time.h>
 
+#include "cpu_features.h"
 #include "gf2x.h"
 #include "kem.h"
 #include "measurements.h"
 #include "utilities.h"
-#include "cpu_features.h"
 
 #if !defined(NUM_OF_TESTS)
-#  define NUM_OF_TESTS 1
+#  define NUM_OF_TESTS 100
 #endif
+
+// 定义是否使用预存 data_sk_pk, 0 使用随机生成, 1 使用预存密钥对
+#define USE_S_P 0
+// 定义是否保存密钥对, 0 不保存, 1 保存正确密钥对, 2 保存错误密钥对
+#define SAVE_S_P 0
+// 定义是否使用预存 data_m, 0 使用随机生成, 1 使用预存 m
+#define USE_M 0
+// 定义是否保存 data_m, 0 不保存, 1 保存正确 m, 2 保存错误 m
+#define SAVE_M 0
 
 typedef struct magic_number_s {
   uint64_t val[4];
@@ -60,45 +69,82 @@ int main()
   STRUCT_WITH_MAGIC(k_enc, sizeof(ss_t)); // shared secret after decapsulate
   STRUCT_WITH_MAGIC(k_dec, sizeof(ss_t)); // shared secret after encapsulate
 
+  // 用于保存错误和正确个数
+  uint32_t error_count = 0;
+  uint32_t right_count = 0;
   for(size_t i = 1; i <= NUM_OF_TESTS; ++i) {
+
     int res = 0;
 
-    printf("Code test: %lu\n", i);
+    // printf("Code test: %lu\n", i);
 
-    // Key generation
-    MEASURE("  keypair", res = crypto_kem_keypair(pk.val, sk.val););
+    if(USE_S_P == 0) {
+      // Key generation
+      MEASURE("  keypair", res = crypto_kem_keypair(pk.val, sk.val););
+    } else if(USE_S_P == 1) {
+      // 读取公钥
+      FILE *fp_r_pk;
+      char  fname_pk[100];
+      sprintf(fname_pk, "data/pk_%ld", i);
+      fp_r_pk             = fopen(fname_pk, "r");
+      size_t res_fread_pk = fread(&pk, 1, sizeof(pk), fp_r_pk);
+      fclose(fp_r_pk);
+
+      // 读取私钥
+      FILE *fp_r_sk;
+      char  fname_sk[100];
+      sprintf(fname_sk, "data/sk_%ld", i);
+      fp_r_sk             = fopen(fname_sk, "r");
+      size_t res_fread_sk = fread(&sk, 1, sizeof(sk), fp_r_sk);
+      fclose(fp_r_sk);
+
+      if(res_fread_pk && res_fread_sk) {
+      }
+    }
 
     if(res != 0) {
       printf("Keypair failed with error: %d\n", res);
       continue;
     }
 
-    uint32_t dec_rc = 0;
+    // 用于检测是否译码错误
+    uint32_t error_tmp = error_count;
+    uint32_t dec_rc    = 0;
+
+    // 用于保存真实 e
+    pad_e_t R_e = {0};
+
+    // 构建 m flag 和预存 m
+    int flag[2] = {USE_M, i};
+    m_t m_in    = {0};
 
     // Encapsulate
-    MEASURE("  encaps", res = crypto_kem_enc(ct.val, k_enc.val, pk.val););
+    MEASURE("  encaps",
+            res = crypto_kem_enc(ct.val, k_enc.val, pk.val, &R_e, flag, &m_in););
     if(res != 0) {
       printf("encapsulate failed with error: %d\n", res);
       continue;
     }
 
     // Decapsulate
-    MEASURE("  decaps", dec_rc = crypto_kem_dec(k_dec.val, ct.val, sk.val););
+    MEASURE("  decaps",
+            dec_rc = crypto_kem_dec(k_dec.val, ct.val, sk.val, &error_count,
+                                    &right_count, &R_e););
 
     // Check test status
     if(dec_rc != 0) {
       printf("Decoding failed after %ld code tests!\n", i);
     } else {
       if(secure_cmp(k_enc.val, k_dec.val, sizeof(k_dec.val) / sizeof(uint64_t))) {
-        printf("Success! decapsulated key is the same as encapsulated "
-               "key!\n");
+        // printf("Success! decapsulated key is the same as encapsulated "
+        //        "key!\n");
       } else {
-        printf("Failure! decapsulated key is NOT the same as encapsulated "
-               "key!\n");
+        // printf("Failure! decapsulated key is NOT the same as encapsulated "
+        //        "key!\n");
       }
     }
 
-    // Check magic numbers (memory overflow) 
+    // Check magic numbers (memory overflow)
     CHECK_MAGIC(sk);
     CHECK_MAGIC(pk);
     CHECK_MAGIC(ct);
@@ -109,7 +155,80 @@ int main()
           SIZEOF_BITS(k_enc.val));
     print("Responder's computed key (K) of 256 bits  = ", (uint64_t *)k_dec.val,
           SIZEOF_BITS(k_enc.val));
+
+    // 是否保存密钥对
+    if(SAVE_S_P == 1) {
+      // 如果译码正确我们保存一个密钥对
+      if(error_tmp == error_count) {
+        // 保存公钥
+        FILE *fp_w_pk;
+        char  fname_pk[100];
+        sprintf(fname_pk, "data/pk_%u", right_count);
+        fp_w_pk = fopen(fname_pk, "w");
+        fwrite(&pk, 1, sizeof(pk), fp_w_pk);
+        fclose(fp_w_pk);
+
+        // 保存私钥
+        FILE *fp_w_sk;
+        char  fname_sk[100];
+        sprintf(fname_sk, "data/sk_%u", right_count);
+        fp_w_sk = fopen(fname_sk, "w");
+        fwrite(&sk, 1, sizeof(sk), fp_w_sk);
+        fclose(fp_w_sk);
+      }
+    } else if(SAVE_S_P == 2) {
+      // 如果译码错误我们保存一个密钥对
+      if(error_tmp != error_count) {
+        // 保存公钥
+        FILE *fp_w_pk;
+        char  fname_pk[100];
+        sprintf(fname_pk, "data/pk_%u", error_count);
+        fp_w_pk = fopen(fname_pk, "w");
+        fwrite(&pk, 1, sizeof(pk), fp_w_pk);
+        fclose(fp_w_pk);
+
+        // 保存私钥
+        FILE *fp_w_sk;
+        char  fname_sk[100];
+        sprintf(fname_sk, "data/sk_%u", error_count);
+        fp_w_sk = fopen(fname_sk, "w");
+        fwrite(&sk, 1, sizeof(sk), fp_w_sk);
+        fclose(fp_w_sk);
+      }
+    } else if(SAVE_S_P == 0) {
+      /* code */
+    }
+
+    // 是否保存 m
+    if(SAVE_M == 1) {
+      // 如果正确译码, 保存 m
+      if(error_tmp == error_count) {
+        // 保存 m
+        FILE *fp_w_m;
+        char  fname_m[100];
+        sprintf(fname_m, "data/m_%u", right_count);
+        fp_w_m = fopen(fname_m, "w");
+        fwrite(&m_in, 1, sizeof(m_in), fp_w_m);
+        fclose(fp_w_m);
+      }
+    } else if(SAVE_M == 2) {
+      // 如果错误译码, 保存 m
+      if(error_tmp != error_count) {
+        // 保存 m
+        FILE *fp_w_m;
+        char  fname_m[100];
+        sprintf(fname_m, "data/m_%u", error_count);
+        fp_w_m = fopen(fname_m, "w");
+        fwrite(&m_in, 1, sizeof(m_in), fp_w_m);
+        fclose(fp_w_m);
+      }
+    } else if(SAVE_M == 0) {
+      /* code */
+    }
   }
+
+  printf("译码错误个数：%u\n", error_count);
+  printf("译码正确个数：%u\n", right_count);
 
   return 0;
 }
