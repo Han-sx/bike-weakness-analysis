@@ -182,6 +182,16 @@ int crypto_kem_keypair(OUT unsigned char *pk, OUT unsigned char *sk)
   gf2x_mod_inv(&h0inv, &h0);
   gf2x_mod_mul(&h, &h1, &h0inv);
 
+  // 构建 hinv 
+  DEFER_CLEANUP(pad_r_t hinv = {0}, pad_r_cleanup);
+  DEFER_CLEANUP(pad_r_t h1inv = {0}, pad_r_cleanup);
+  gf2x_mod_inv(&h1inv, &h1);
+  gf2x_mod_mul(&hinv, &h0, &h1inv);
+  uint64_t h_w = r_bits_vector_weight((r_t *)&h.val);
+  printf("h 的重量: %lu\n", h_w);
+  uint64_t hinv_w = r_bits_vector_weight((r_t *)&h.val);
+  printf("hinv 的重量: %lu\n", hinv_w);
+
   // Fill the secret key data structure with contents - cancel the padding
   l_sk.bin[0] = h0.val;
   l_sk.bin[1] = h1.val;
