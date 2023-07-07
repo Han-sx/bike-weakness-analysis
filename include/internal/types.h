@@ -124,10 +124,22 @@ typedef struct upc_s {
   upc_slice_t slice[SLICES];
 } upc_t;
 
+typedef struct upc_fake_s {
+  upc_slice_t slice[14];
+} upc_fake_t;
+
 // 封装 upc_0 和 upc_1
 typedef struct upc_all_s
 {
   upc_t val[N0];
 } upc_all_t;
+
+// 封装 upc_fake_0 和 upc_fake_1
+// 封装 upc_0 和 upc_1
+typedef struct upc_fake_all_s
+{
+  upc_fake_t val[N0];
+} upc_fake_all_t;
+
 
 #pragma pack(pop)

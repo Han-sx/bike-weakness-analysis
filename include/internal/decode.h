@@ -14,4 +14,5 @@ ret_t decode(OUT e_t       *e,
              IN const sk_t *sk,
              IN uint32_t   *error_count,
              IN uint32_t   *right_count,
-             IN const pad_e_t *R_e);
+             IN const pad_e_t *R_e,
+             IN unsigned char *fake_sk);

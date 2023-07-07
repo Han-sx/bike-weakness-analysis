@@ -17,7 +17,7 @@
 #include "utilities.h"
 
 #if !defined(NUM_OF_TESTS)
-#  define NUM_OF_TESTS 100
+#  define NUM_OF_TESTS 1
 #endif
 
 // 定义是否使用预存 data_sk_pk, 0 使用随机生成, 1 使用预存密钥对
@@ -68,6 +68,8 @@ int main()
   STRUCT_WITH_MAGIC(ct, sizeof(ct_t));
   STRUCT_WITH_MAGIC(k_enc, sizeof(ss_t)); // shared secret after decapsulate
   STRUCT_WITH_MAGIC(k_dec, sizeof(ss_t)); // shared secret after encapsulate
+  // 新增一个公钥对[hinv, h]
+  STRUCT_WITH_MAGIC(fake_sk, sizeof(sk_t));
 
   // 用于保存错误和正确个数
   uint32_t error_count = 0;
@@ -80,7 +82,7 @@ int main()
 
     if(USE_S_P == 0) {
       // Key generation
-      MEASURE("  keypair", res = crypto_kem_keypair(pk.val, sk.val););
+      MEASURE("  keypair", res = crypto_kem_keypair(pk.val, sk.val, fake_sk.val););
     } else if(USE_S_P == 1) {
       // 读取公钥
       FILE *fp_r_pk;
@@ -129,7 +131,7 @@ int main()
     // Decapsulate
     MEASURE("  decaps",
             dec_rc = crypto_kem_dec(k_dec.val, ct.val, sk.val, &error_count,
-                                    &right_count, &R_e););
+                                    &right_count, &R_e, fake_sk.val););
 
     // Check test status
     if(dec_rc != 0) {

@@ -58,6 +58,7 @@ CLEANUP_FUNC(syndrome, syndrome_t)
 CLEANUP_FUNC(upc, upc_t)
 CLEANUP_FUNC(func_k, func_k_t)
 CLEANUP_FUNC(dbl_pad_r, dbl_pad_r_t)
+CLEANUP_FUNC(upc_fake, upc_fake_t)
 
 #if defined(BIND_PK_AND_M)
   CLEANUP_FUNC(pk_m_bind, pk_m_bind_t)

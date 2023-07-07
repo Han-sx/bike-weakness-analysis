@@ -155,9 +155,13 @@ _INLINE_ ret_t reencrypt(OUT m_t *m, IN const pad_e_t *e, IN const ct_t *l_ct)
 ////////////////////////////////////////////////////////////////////////////////
 // The three APIs below (keypair, encapsulate, decapsulate) are defined by NIST:
 ////////////////////////////////////////////////////////////////////////////////
-int crypto_kem_keypair(OUT unsigned char *pk, OUT unsigned char *sk)
+int crypto_kem_keypair(OUT unsigned char *pk,
+                       OUT unsigned char *sk,
+                       OUT unsigned char *fake_sk)
 {
   DEFER_CLEANUP(aligned_sk_t l_sk = {0}, sk_cleanup);
+  // 生成一个 fake_sk
+  DEFER_CLEANUP(aligned_sk_t l_fake_sk = {0}, sk_cleanup);
 
   // The secret key is (h0, h1),
   // and the public key h=(h0^-1 * h1).
@@ -177,19 +181,21 @@ int crypto_kem_keypair(OUT unsigned char *pk, OUT unsigned char *sk)
 
   // Generate sigma
   convert_seed_to_m_type(&l_sk.sigma, &seeds.seed[1]);
+  // 将相同 sigma 加入 fake_sk
+  convert_seed_to_m_type(&l_fake_sk.sigma, &seeds.seed[1]);
 
   // Calculate the public key
   gf2x_mod_inv(&h0inv, &h0);
   gf2x_mod_mul(&h, &h1, &h0inv);
 
-  // 构建 hinv 
+  // 构建 hinv
   DEFER_CLEANUP(pad_r_t hinv = {0}, pad_r_cleanup);
   DEFER_CLEANUP(pad_r_t h1inv = {0}, pad_r_cleanup);
   gf2x_mod_inv(&h1inv, &h1);
   gf2x_mod_mul(&hinv, &h0, &h1inv);
   uint64_t h_w = r_bits_vector_weight((r_t *)&h.val);
   printf("h 的重量: %lu\n", h_w);
-  uint64_t hinv_w = r_bits_vector_weight((r_t *)&h.val);
+  uint64_t hinv_w = r_bits_vector_weight((r_t *)&hinv.val);
   printf("hinv 的重量: %lu\n", hinv_w);
 
   // Fill the secret key data structure with contents - cancel the padding
@@ -197,9 +203,15 @@ int crypto_kem_keypair(OUT unsigned char *pk, OUT unsigned char *sk)
   l_sk.bin[1] = h1.val;
   l_sk.pk     = h.val;
 
+  // 获取 fake_sk [hinv,h]
+  l_fake_sk.bin[0] = hinv.val;
+  l_fake_sk.bin[1] = h.val;
+
   // Copy the data to the output buffers
   bike_memcpy(sk, &l_sk, sizeof(l_sk));
   bike_memcpy(pk, &l_sk.pk, sizeof(l_sk.pk));
+  // 拷贝 fake_sk
+  bike_memcpy(fake_sk, &l_fake_sk, sizeof(l_fake_sk));
 
   print("h:  ", (uint64_t *)&l_sk.pk, R_BITS);
   print("h0: ", (uint64_t *)&l_sk.bin[0], R_BITS);
@@ -246,7 +258,8 @@ int crypto_kem_enc(OUT unsigned char      *ct,
     sprintf(fname_m, "data/m_%d", flag[1]);
     fp_r_m              = fopen(fname_m, "r");
     size_t res_fread_pk = fread(&m, 1, sizeof(m), fp_r_m);
-    if(res_fread_pk){}
+    if(res_fread_pk) {
+    }
     fclose(fp_r_m);
   } else {
     printf("警告: m 为空, 未分配任何值\n");
@@ -281,7 +294,8 @@ int crypto_kem_dec(OUT unsigned char      *ss,
                    IN const unsigned char *sk,
                    IN uint32_t            *error_count,
                    IN uint32_t            *right_count,
-                   IN const pad_e_t       *R_e)
+                   IN const pad_e_t       *R_e,
+                   IN unsigned char       *fake_sk)
 {
   // Public values, does not require a cleanup on exit
   ct_t l_ct;
@@ -300,7 +314,7 @@ int crypto_kem_dec(OUT unsigned char      *ss,
 
   // Decode and check if success.
   volatile uint32_t success_cond =
-    (decode(&e, &l_ct, &l_sk, error_count, right_count, R_e) == SUCCESS);
+    (decode(&e, &l_ct, &l_sk, error_count, right_count, R_e, fake_sk) == SUCCESS);
 
   // Copy the error vector in the padded struct.
   e_prime.val[0].val = e.val[0];
