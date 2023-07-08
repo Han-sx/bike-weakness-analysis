@@ -327,8 +327,45 @@ ret_t decode(OUT e_t          *e,
   printf("h 的重量: %lu\n", h_w);
 
 
-  // TODO  
   // 构造 h 和 hinv 的首行位置，然后用 类似方法旋转获取 upc
+
+  // 构造数组用于保存首行位置 wlist_fake_0 wlist_fake_1
+  uint32_t wlist_fake_0[hinv_w];
+  uint32_t wlist_fake_1[h_w];
+  memset(wlist_fake_0, 0, sizeof(wlist_fake_0));
+  memset(wlist_fake_1, 0, sizeof(wlist_fake_1));
+
+  uint32_t count_0 = 0;
+  uint32_t location_0 = 0;
+  for(int i_0 = 0; i_0 < R_BYTES; i_0++) {
+    for(uint8_t mask_wlist = 1; mask_wlist != 0; mask_wlist <<= 1){
+      if(location_0 == R_BITS){
+        break;
+      }
+      if((l_fake_sk.bin[0].raw[i_0] & mask_wlist) != 0){
+        wlist_fake_0[count_0] = location_0;
+        count_0++;
+      }
+      location_0++;
+    }
+  }
+
+  uint32_t count_1 = 0;
+  uint32_t location_1 = 0;
+  for(int i_1 = 0; i_1 < R_BYTES; i_1++) {
+    for(uint8_t mask_wlist = 1; mask_wlist != 0; mask_wlist <<= 1){
+      if(location_1 == R_BITS){
+        break;
+      }
+      if((l_fake_sk.bin[1].raw[i_1] & mask_wlist) != 0){
+        wlist_fake_1[count_1] = location_1;
+        count_1++;
+      }
+      location_1++;
+    }
+  }
+  
+
 
   // for(uint32_t i = 0; i < N0; i++) {
   //   DEFER_CLEANUP(syndrome_t rotated_syndrome = {0}, syndrome_cleanup);
@@ -348,9 +385,6 @@ ret_t decode(OUT e_t          *e,
   //     upc_fake_out.val[i].slice[slice_i] = upc_fake.slice[slice_i];
   //   }
   // }
-
-
-
 
   DEFER_CLEANUP(syndrome_t s = {0}, syndrome_cleanup);
   DMSG("  Computing s.\n");
