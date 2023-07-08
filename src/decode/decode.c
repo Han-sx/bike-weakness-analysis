@@ -272,7 +272,8 @@ ret_t decode(OUT e_t          *e,
              IN const sk_t    *sk,
              IN uint32_t      *error_count,
              IN uint32_t      *right_count,
-             IN const pad_e_t *R_e)
+             IN const pad_e_t *R_e,
+             IN unsigned char *fake_sk)
 {
   // Initialize the decode methods struct
   decode_ctx ctx;
@@ -289,6 +290,67 @@ ret_t decode(OUT e_t          *e,
   c0.val = ct->c0;
   h0.val = sk->bin[0];
   pk.val = sk->pk;
+
+  // 将 fake_sk 获取
+  DEFER_CLEANUP(aligned_sk_t l_fake_sk, sk_cleanup);
+  bike_memcpy(&l_fake_sk, fake_sk, sizeof(l_fake_sk));
+
+  DEFER_CLEANUP(pad_r_t e0_tmp = {0}, pad_r_cleanup);
+  DEFER_CLEANUP(pad_r_t e1_tmp = {0}, pad_r_cleanup);
+  DEFER_CLEANUP(pad_r_t hinv_tmp = {0}, pad_r_cleanup);
+  DEFER_CLEANUP(pad_r_t h_tmp = {0}, pad_r_cleanup);
+  DEFER_CLEANUP(pad_r_t e0_mul_hinv = {0}, pad_r_cleanup);
+  DEFER_CLEANUP(pad_r_t e1_mul_h = {0}, pad_r_cleanup);
+  DEFER_CLEANUP(pad_r_t s_tmp = {0}, pad_r_cleanup);
+  e0_tmp.val   = R_e->val[0].val;
+  e1_tmp.val   = R_e->val[1].val;
+  hinv_tmp.val = l_fake_sk.bin[0];
+  h_tmp.val    = l_fake_sk.bin[1];
+
+  // 进行 e0 * hinv + e1 * h 运算
+  gf2x_mod_mul(&e0_mul_hinv, &e0_tmp, &hinv_tmp);
+  gf2x_mod_mul(&e1_mul_h, &e1_tmp, &h_tmp);
+  gf2x_mod_add(&s_tmp, &e0_mul_hinv, &e1_mul_h);
+  DEFER_CLEANUP(syndrome_t s_fake = {0}, syndrome_cleanup);
+  bike_memcpy((uint8_t *)s_fake.qw, s_tmp.val.raw, R_BYTES);
+  decode_ctx ctx_fake;
+  decode_ctx_init(&ctx_fake);
+  ctx_fake.dup(&s_fake);
+
+  // // 计算 upc
+  // upc_fake_all_t upc_fake_out = {0};
+
+  // 计算 [h_inv, h] 的首行重量
+  uint64_t hinv_w = r_bits_vector_weight((r_t *)&l_fake_sk.bin[0].raw);
+  printf("hinv 的重量: %lu\n", hinv_w);
+  uint64_t h_w = r_bits_vector_weight((r_t *)&l_fake_sk.bin[1].raw);
+  printf("h 的重量: %lu\n", h_w);
+
+
+  // TODO  
+  // 构造 h 和 hinv 的首行位置，然后用 类似方法旋转获取 upc
+
+  // for(uint32_t i = 0; i < N0; i++) {
+  //   DEFER_CLEANUP(syndrome_t rotated_syndrome = {0}, syndrome_cleanup);
+  //   DEFER_CLEANUP(upc_fake_t upc_fake, upc_fake_cleanup);
+  //   // UPC must start from zero at every iteration
+  //   bike_memset(&upc_fake, 0, sizeof(upc_fake));
+
+  //   // 1) Right-rotate the syndrome for every secret key set bit index
+  //   //    Then slice-add it to the UPC array.
+  //   for(size_t j = 0; j < D; j++) {
+  //     ctx_fake.rotate_right(&rotated_syndrome, &s_fake, wlist[i].val[j]);
+  //     ctx_fake.bit_sliced_adder(&upc_fake, &rotated_syndrome, LOG2_MSB(j + 1));
+  //   }
+
+  //   // 保存 upc 到 upc_out
+  //   for(uint8_t slice_i = 0; slice_i < 14; slice_i++) {
+  //     upc_fake_out.val[i].slice[slice_i] = upc_fake.slice[slice_i];
+  //   }
+  // }
+
+
+
 
   DEFER_CLEANUP(syndrome_t s = {0}, syndrome_cleanup);
   DMSG("  Computing s.\n");
