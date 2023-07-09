@@ -17,7 +17,7 @@
 #include "utilities.h"
 
 #if !defined(NUM_OF_TESTS)
-#  define NUM_OF_TESTS 1
+#  define NUM_OF_TESTS 1000
 #endif
 
 // 定义是否使用预存 data_sk_pk, 0 使用随机生成, 1 使用预存密钥对

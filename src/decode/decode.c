@@ -51,7 +51,7 @@
 #    error "Level can only be 1/3"
 #  endif
 #elif defined(BGF_DECODER)
-#  define MAX_IT 15
+#  define MAX_IT 3
 #endif
 
 // 当 SAVE_MOD = 0 时保存所有，1 保存正确，2 保存错误, 其他不保存
@@ -327,9 +327,9 @@ ret_t decode(OUT e_t          *e,
 
     // 计算 [h_inv, h] 的首行重量
     uint64_t hinv_w = r_bits_vector_weight((r_t *)&l_fake_sk.bin[0].raw);
-    printf("hinv 的重量: %lu\n", hinv_w);
+    // printf("hinv 的重量: %lu\n", hinv_w);
     uint64_t h_w = r_bits_vector_weight((r_t *)&l_fake_sk.bin[1].raw);
-    printf("h 的重量: %lu\n", h_w);
+    // printf("h 的重量: %lu\n", h_w);
 
     // 构造 h 和 hinv 的首行位置，然后用 类似方法旋转获取 upc
     // 构造数组用于保存首行位置 wlist_fake_0 wlist_fake_1
