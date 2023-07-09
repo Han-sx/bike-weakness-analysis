@@ -30,7 +30,7 @@
 #endif
 
 // Divide by the divider and round up to next integer
-#define DIVIDE_AND_CEIL(x, divider) (((x) + (divider) - 1) / (divider))
+#define DIVIDE_AND_CEIL(x, divider) (((x) + (divider)-1) / (divider))
 
 // Bit manipulations
 // Linux Assemblies, except for Ubuntu, cannot understand what ULL mean.
@@ -69,23 +69,36 @@
 #define UPTOPOW2(v) (UPTOPOW2_5(v) + 1)
 
 // Works only for 0 < v < 512
-#define LOG2_MSB(v)                                 \
-  ((v) == 0                                         \
-     ? 0                                            \
-     : ((v) < 2                                     \
-          ? 1                                       \
-          : ((v) < 4                                \
-               ? 2                                  \
-               : ((v) < 8                           \
-                    ? 3                             \
-                    : ((v) < 16                     \
-                         ? 4                        \
-                         : ((v) < 32                \
-                              ? 5                   \
-                              : ((v) < 64           \
-                                   ? 6              \
-                                   : ((v) < 128 ? 7 \
-                                                : ((v) < 256 ? 8 : 9)))))))))
+#define LOG2_MSB(v)                                                            \
+  ((v) == 0                                                                    \
+     ? 0                                                                       \
+     : ((v) < 2                                                                \
+          ? 1                                                                  \
+          : ((v) < 4                                                           \
+               ? 2                                                             \
+               : ((v) < 8                                                      \
+                    ? 3                                                        \
+                    : ((v) < 16                                                \
+                         ? 4                                                   \
+                         : ((v) < 32                                           \
+                              ? 5                                              \
+                              : ((v) < 64                                      \
+                                   ? 6                                         \
+                                   : ((v) < 128                                \
+                                        ? 7                                    \
+                                        : ((v) < 256                           \
+                                             ? 8                               \
+                                             : ((v) < 512                      \
+                                                  ? 9                          \
+                                                  : ((v) < 1024                \
+                                                       ? 10                    \
+                                                       : ((v) < 2048           \
+                                                            ? 11               \
+                                                            : ((v) < 4096      \
+                                                                 ? 12          \
+                                                                 : ((v) < 8192 \
+                                                                      ? 13     \
+                                                                      : 14))))))))))))))
 
 ////////////////////////////////////////////
 //             Debug
@@ -105,6 +118,6 @@
 ////////////////////////////////////////////
 //              Printing
 ///////////////////////////////////////////
-//#define PRINT_IN_BE
-//#define NO_SPACE
-//#define NO_NEWLINE
+// #define PRINT_IN_BE
+// #define NO_SPACE
+// #define NO_NEWLINE
