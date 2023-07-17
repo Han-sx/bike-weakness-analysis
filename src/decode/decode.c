@@ -54,7 +54,7 @@
 #  define MAX_IT 3
 #endif
 
-// 当 SAVE_MOD = 0 时保存所有，1 保存正确，2 保存错误, 其他不保存
+// 当 SAVE_MOD = 0 时保存所有(密钥，e，upc)，1 保存正确所有，2 保存错误所有, 3 仅保存 upc 正确, 4 仅保存 upc 错误, 其他不保存
 #define SAVE_MOD 3
 
 // 是否保存 fake_upc, 0 保存所有，1 保存正确，2 保存错误， 其他不保存
@@ -542,6 +542,22 @@ ret_t decode(OUT e_t          *e,
       fp_LE_test_2 = fopen("weak_key_flag", "a");
       fprintf(fp_LE_test_2, "0\n");
       fclose(fp_LE_test_2);
+    }
+  }else if(SAVE_MOD == 3){
+    if(r_bits_vector_weight((r_t *)s.qw) == 0) {
+      // 写入 upc
+      compute_upc_and_save_test(weak_upc[0].val[0]);
+      compute_upc_and_save_test(weak_upc[0].val[1]);
+      // 换行
+      write_wrap(filename);
+    }
+  }else if(SAVE_MOD == 4){
+    if(r_bits_vector_weight((r_t *)s.qw) > 0) {
+      // 写入 upc
+      compute_upc_and_save_test(weak_upc[0].val[0]);
+      compute_upc_and_save_test(weak_upc[0].val[1]);
+      // 换行
+      write_wrap(filename);
     }
   }
 
