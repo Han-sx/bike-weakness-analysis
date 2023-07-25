@@ -63,8 +63,8 @@
 // [e0, e1] * [hinv, h] = fake_s; fake_s * [hinv, h] = fake_upc
 #define SAVE_FAKE_UPC 3
 
-// 是否构造保存 s 的整数域值(这里会保存两行 e0*h0^T 和 e1*h1^T 需要后期合并) 1
-// 保存, 其他不保存
+// 是否构造保存 s 的整数域值(这里会保存两行 e0*h0^T 和 e1*h1^T 需要后期合并) 0
+// 保存所有, 1 保存正确, 2 保存错误, 其他不保存
 #define SAVE_S_INT_MOD 1
 
 // 用于计算出upc切片的值并保存在文件中
@@ -449,7 +449,9 @@ ret_t decode(OUT e_t          *e,
   char filename[20] = "weak_key";
 
   // 检查是否保存整数域的 s 值
-  if(SAVE_S_INT_MOD == 1) {
+  if((SAVE_S_INT_MOD == 1 && r_bits_vector_weight((r_t *)s.qw) == 0) ||
+     (SAVE_S_INT_MOD == 2 && r_bits_vector_weight((r_t *)s.qw) > 0) ||
+     (SAVE_S_INT_MOD == 0)) {
     // ========== 开始构造 s 的有限域存储 ==========
 
     // 新建 sk 的转置
