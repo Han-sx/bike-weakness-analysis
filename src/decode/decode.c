@@ -51,16 +51,21 @@
 #    error "Level can only be 1/3"
 #  endif
 #elif defined(BGF_DECODER)
-#  define MAX_IT 3
+#  define MAX_IT 5
 #endif
 
-// 当 SAVE_MOD = 0 时保存所有(密钥，e，upc)，1 保存正确所有，2 保存错误所有, 3 仅保存 upc 正确, 4 仅保存 upc 错误, 其他不保存
-#define SAVE_MOD 3
+// 当 SAVE_MOD = 0 时保存所有(密钥，e，upc)，1 保存正确所有，2 保存错误所有, 3
+// 仅保存 upc 正确, 4 仅保存 upc 错误, 其他不保存
+#define SAVE_MOD 5
 
 // 是否保存 fake_upc, 0 保存所有，1 保存正确，2 保存错误， 其他不保存
 // fake_upc 是由 [hinv, h] 模拟 [h0, h1] 获得：
 // [e0, e1] * [hinv, h] = fake_s; fake_s * [hinv, h] = fake_upc
 #define SAVE_FAKE_UPC 3
+
+// 是否构造保存 s 的整数域值(这里会保存两行 e0*h0^T 和 e1*h1^T 需要后期合并) 1
+// 保存, 其他不保存
+#define SAVE_S_INT_MOD 1
 
 // 用于计算出upc切片的值并保存在文件中
 _INLINE_ void compute_upc_and_save_test(IN upc_t upc)
@@ -443,6 +448,77 @@ ret_t decode(OUT e_t          *e,
   // 保存文件名
   char filename[20] = "weak_key";
 
+  // 检查是否保存整数域的 s 值
+  if(SAVE_S_INT_MOD == 1) {
+    // ========== 开始构造 s 的有限域存储 ==========
+
+    // 新建 sk 的转置
+    sk_t sk_transpose = {0};
+
+    // 构造 sk 转置 sk_transpose, 获取 sk 转置的首行索引
+    // 𝜑(A)' = a0 + ar-1X + ar-2X^2 ...
+    for(uint8_t i = 0; i < N0; i++) {
+      for(uint8_t i_DV = 0; i_DV < D; i_DV++) {
+        if(sk->wlist[i].val[i_DV] != 0) {
+          sk_transpose.wlist[i].val[i_DV] = R_BITS - sk->wlist[i].val[i_DV];
+        } else {
+          sk_transpose.wlist[i].val[i_DV] = sk->wlist[i].val[i_DV];
+        }
+      }
+    }
+
+    // 用 e 和 sk_transpose 进行有限域相乘，并保存在 upc 结构中
+    // 构造 upc_eh_01_out 保存 e0*h0^T 和 e1*h0^T
+    upc_all_t upc_eh_01_out = {0};
+    DEFER_CLEANUP(syndrome_t e_0_s = {0}, syndrome_cleanup);
+    DEFER_CLEANUP(syndrome_t e_1_s = {0}, syndrome_cleanup);
+    bike_memcpy((uint8_t *)e_0_s.qw, R_e->val[0].val.raw, R_BYTES);
+    bike_memcpy((uint8_t *)e_1_s.qw, R_e->val[1].val.raw, R_BYTES);
+    decode_ctx ctx_e_s;
+    decode_ctx_init(&ctx_e_s);
+    ctx_e_s.dup(&e_0_s);
+    ctx_e_s.dup(&e_1_s);
+
+    DEFER_CLEANUP(syndrome_t rotated_syndrome = {0}, syndrome_cleanup);
+    DEFER_CLEANUP(upc_t upc_eh_0, upc_cleanup);
+    DEFER_CLEANUP(upc_t upc_eh_1, upc_cleanup);
+    for(uint32_t i = 0; i < N0; i++) {
+
+      // UPC must start from zero at every iteration
+      bike_memset(&upc_eh_0, 0, sizeof(upc_eh_0));
+      bike_memset(&upc_eh_1, 0, sizeof(upc_eh_1));
+
+      // 1) Right-rotate the syndrome for every secret key set bit index
+      //    Then slice-add it to the UPC array.
+      if(i == 0) {
+        for(size_t j = 0; j < D; j++) {
+          ctx_e_s.rotate_right(&rotated_syndrome, &e_0_s,
+                               sk_transpose.wlist[i].val[j]);
+          ctx_e_s.bit_sliced_adder(&upc_eh_0, &rotated_syndrome, LOG2_MSB(j + 1));
+        }
+        // 保存 upc 到 upc_out
+        for(uint8_t slice_i = 0; slice_i < SLICES; slice_i++) {
+          upc_eh_01_out.val[i].slice[slice_i] = upc_eh_0.slice[slice_i];
+        }
+      } else {
+        for(size_t j = 0; j < D; j++) {
+          ctx_e_s.rotate_right(&rotated_syndrome, &e_1_s,
+                               sk_transpose.wlist[i].val[j]);
+          ctx_e_s.bit_sliced_adder(&upc_eh_1, &rotated_syndrome, LOG2_MSB(j + 1));
+        }
+        // 保存 upc 到 upc_out
+        for(uint8_t slice_i = 0; slice_i < SLICES; slice_i++) {
+          upc_eh_01_out.val[i].slice[slice_i] = upc_eh_1.slice[slice_i];
+        }
+      }
+    }
+    // 保存到文件
+    compute_upc_and_save_test(upc_eh_01_out.val[0]);
+    write_wrap(filename);
+    compute_upc_and_save_test(upc_eh_01_out.val[1]);
+    write_wrap(filename);
+  }
+
   // 检查 fake_upc
   if(SAVE_FAKE_UPC == 0) {
     // 保存到文件
@@ -543,7 +619,7 @@ ret_t decode(OUT e_t          *e,
       fprintf(fp_LE_test_2, "0\n");
       fclose(fp_LE_test_2);
     }
-  }else if(SAVE_MOD == 3){
+  } else if(SAVE_MOD == 3) {
     if(r_bits_vector_weight((r_t *)s.qw) == 0) {
       // 写入 upc
       compute_upc_and_save_test(weak_upc[0].val[0]);
@@ -551,7 +627,7 @@ ret_t decode(OUT e_t          *e,
       // 换行
       write_wrap(filename);
     }
-  }else if(SAVE_MOD == 4){
+  } else if(SAVE_MOD == 4) {
     if(r_bits_vector_weight((r_t *)s.qw) > 0) {
       // 写入 upc
       compute_upc_and_save_test(weak_upc[0].val[0]);
