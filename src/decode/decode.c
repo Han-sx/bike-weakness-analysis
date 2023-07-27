@@ -63,9 +63,14 @@
 // [e0, e1] * [hinv, h] = fake_s; fake_s * [hinv, h] = fake_upc
 #define SAVE_FAKE_UPC 3
 
-// 是否构造保存 s 的整数域值(这里会保存两行 e0*h0^T 和 e1*h1^T 需要后期合并) 1
-// 保存, 其他不保存
-#define SAVE_S_INT_MOD 1
+// 是否构造保存 s 的整数域值(这里会保存两行 e0*h0^T 和 e1*h1^T 需要后期合并) 0
+// 保存所有, 1 保存正确, 2 保存错误, 其他不保存
+#define SAVE_S_INT_MOD 3
+
+// 是否保存 fake_s_int 在整数域上, 0 保存所有，1 保存正确，2 保存错误， 其他不保存
+// fake_s_int 是由 [hinv, h] 模拟 [h0, h1] 获得：
+// e0 * hinv^T + e1 * h^T = fake_s_int;
+#define SAVE_S_FAKE_INT_MOD 0
 
 // 用于计算出upc切片的值并保存在文件中
 _INLINE_ void compute_upc_and_save_test(IN upc_t upc)
@@ -301,7 +306,7 @@ ret_t decode(OUT e_t          *e,
   h0.val = sk->bin[0];
   pk.val = sk->pk;
 
-  // 计算 fake_upc
+  // ================ 计算 fake_upc ================
   upc_all_t upc_fake_out = {0};
   if(SAVE_FAKE_UPC == 0 || SAVE_FAKE_UPC == 1 || SAVE_FAKE_UPC == 2) {
     // 将 fake_sk 获取
@@ -448,9 +453,138 @@ ret_t decode(OUT e_t          *e,
   // 保存文件名
   char filename[20] = "weak_key";
 
+  // 检查是否保存整数域的 fake_s 值
+  if((SAVE_S_FAKE_INT_MOD == 1 && r_bits_vector_weight((r_t *)s.qw) == 0) ||
+     (SAVE_S_FAKE_INT_MOD == 2 && r_bits_vector_weight((r_t *)s.qw) > 0) ||
+     (SAVE_S_FAKE_INT_MOD == 0)) {
+
+    // ================ 计算 fake_s ================
+    // 将 fake_sk 获取
+    DEFER_CLEANUP(aligned_sk_t l_fake_sk, sk_cleanup);
+    bike_memcpy(&l_fake_sk, fake_sk, sizeof(l_fake_sk));
+
+    // 计算 [h_inv, h] 的首行重量
+    uint64_t hinv_w = r_bits_vector_weight((r_t *)&l_fake_sk.bin[0].raw);
+    uint64_t h_w    = r_bits_vector_weight((r_t *)&l_fake_sk.bin[1].raw);
+
+    // 构造 h 和 hinv 的首行位置
+    // 构造数组用于保存首行位置 wlist_fake_0 wlist_fake_1
+    uint32_t wlist_fake_0[hinv_w];
+    uint32_t wlist_fake_1[h_w];
+    memset(wlist_fake_0, 0, sizeof(wlist_fake_0));
+    memset(wlist_fake_1, 0, sizeof(wlist_fake_1));
+
+    uint32_t count_0    = 0;
+    uint32_t location_0 = 0;
+    for(int i_0 = 0; i_0 < R_BYTES; i_0++) {
+      for(uint8_t mask_wlist = 1; mask_wlist != 0; mask_wlist <<= 1) {
+        if(location_0 == R_BITS) {
+          break;
+        }
+        if((l_fake_sk.bin[0].raw[i_0] & mask_wlist) != 0) {
+          wlist_fake_0[count_0] = location_0;
+          count_0++;
+        }
+        location_0++;
+      }
+    }
+
+    uint32_t count_1    = 0;
+    uint32_t location_1 = 0;
+    for(int i_1 = 0; i_1 < R_BYTES; i_1++) {
+      for(uint8_t mask_wlist = 1; mask_wlist != 0; mask_wlist <<= 1) {
+        if(location_1 == R_BITS) {
+          break;
+        }
+        if((l_fake_sk.bin[1].raw[i_1] & mask_wlist) != 0) {
+          wlist_fake_1[count_1] = location_1;
+          count_1++;
+        }
+        location_1++;
+      }
+    }
+
+    // 对 hinv 和 h 进行转置
+    // 构造转置 hinv_tr 和 h_tr
+    uint32_t wlist_fake_0_tr[hinv_w];
+    uint32_t wlist_fake_1_tr[h_w];
+    memset(wlist_fake_0_tr, 0, sizeof(wlist_fake_0_tr));
+    memset(wlist_fake_1_tr, 0, sizeof(wlist_fake_1_tr));
+
+    // 𝜑(A)' = a0 + ar-1X + ar-2X^2 ...
+    for(uint32_t i_DV = 0; i_DV < hinv_w; i_DV++) {
+      if(wlist_fake_0[i_DV] != 0) {
+        wlist_fake_0_tr[i_DV] = R_BITS - wlist_fake_0[i_DV];
+      } else {
+        wlist_fake_0_tr[i_DV] = wlist_fake_0[i_DV];
+      }
+    }
+    for(uint32_t i_DV = 0; i_DV < h_w; i_DV++) {
+      if(wlist_fake_1[i_DV] != 0) {
+        wlist_fake_1_tr[i_DV] = R_BITS - wlist_fake_1[i_DV];
+      } else {
+        wlist_fake_1_tr[i_DV] = wlist_fake_1[i_DV];
+      }
+    }
+
+    // 计算整数域上的 s_fake = e0 * hinv^T + e1 * h^T 并保存在 upc 结构中
+    // 构造 upc_eh_01_out 保存 e0 * hinv^T 和 e1 * h^T
+    upc_all_t upc_fake_eh_01_out = {0};
+    DEFER_CLEANUP(syndrome_t e_0_s = {0}, syndrome_cleanup);
+    DEFER_CLEANUP(syndrome_t e_1_s = {0}, syndrome_cleanup);
+    bike_memcpy((uint8_t *)e_0_s.qw, R_e->val[0].val.raw, R_BYTES);
+    bike_memcpy((uint8_t *)e_1_s.qw, R_e->val[1].val.raw, R_BYTES);
+    decode_ctx ctx_e_s;
+    decode_ctx_init(&ctx_e_s);
+    ctx_e_s.dup(&e_0_s);
+    ctx_e_s.dup(&e_1_s);
+
+    DEFER_CLEANUP(syndrome_t rotated_syndrome = {0}, syndrome_cleanup);
+    DEFER_CLEANUP(upc_t upc_fake_eh_0, upc_cleanup);
+    DEFER_CLEANUP(upc_t upc_fake_eh_1, upc_cleanup);
+    for(uint32_t i = 0; i < N0; i++) {
+
+      // UPC must start from zero at every iteration
+      bike_memset(&upc_fake_eh_0, 0, sizeof(upc_fake_eh_0));
+      bike_memset(&upc_fake_eh_1, 0, sizeof(upc_fake_eh_1));
+
+      // 1) Right-rotate the syndrome for every secret key set bit index
+      //    Then slice-add it to the UPC array.
+      if(i == 0) {
+        for(size_t j = 0; j < hinv_w; j++) {
+          ctx_e_s.rotate_right(&rotated_syndrome, &e_0_s, wlist_fake_1_tr[j]);
+          ctx_e_s.bit_sliced_adder(&upc_fake_eh_0, &rotated_syndrome,
+                                   LOG2_MSB(j + 1));
+        }
+        // 保存 upc 到 upc_out
+        for(uint8_t slice_i = 0; slice_i < SLICES; slice_i++) {
+          upc_fake_eh_01_out.val[i].slice[slice_i] = upc_fake_eh_0.slice[slice_i];
+        }
+      } else {
+        for(size_t j = 0; j < h_w; j++) {
+          ctx_e_s.rotate_right(&rotated_syndrome, &e_1_s, wlist_fake_1_tr[j]);
+          ctx_e_s.bit_sliced_adder(&upc_fake_eh_1, &rotated_syndrome,
+                                   LOG2_MSB(j + 1));
+        }
+        // 保存 upc 到 upc_out
+        for(uint8_t slice_i = 0; slice_i < SLICES; slice_i++) {
+          upc_fake_eh_01_out.val[i].slice[slice_i] = upc_fake_eh_1.slice[slice_i];
+        }
+      }
+    }
+
+    // 保存到文件
+    compute_upc_and_save_test(upc_fake_eh_01_out.val[0]);
+    write_wrap(filename);
+    compute_upc_and_save_test(upc_fake_eh_01_out.val[1]);
+    write_wrap(filename);
+  }
+
   // 检查是否保存整数域的 s 值
-  if(SAVE_S_INT_MOD == 1) {
-    // ========== 开始构造 s 的有限域存储 ==========
+  if((SAVE_S_INT_MOD == 1 && r_bits_vector_weight((r_t *)s.qw) == 0) ||
+     (SAVE_S_INT_MOD == 2 && r_bits_vector_weight((r_t *)s.qw) > 0) ||
+     (SAVE_S_INT_MOD == 0)) {
+    // ========== 开始构造 s 的整数域存储 ==========
 
     // 新建 sk 的转置
     sk_t sk_transpose = {0};
